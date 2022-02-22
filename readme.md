@@ -1,15 +1,20 @@
-# RedPanda studies
+# [RedPanda studies](https://jbcodeforce.github.com/redpanda-studies)
 
-![redpanda](docs/redpanda.png) [RedPanda]() is a modern streaming platform for mission critical workloads, and is compatible with Kafka API. It is a cluster of brokers without any zookeepers.
+![redpanda](docs/redpanda.png) [RedPanda](https://vectorized.io/) is a modern streaming platform for mission critical workloads, and is compatible with Kafka API. It is a cluster of brokers without any zookeepers.
 
 * Companies are not happy to run Kafka, and when they have deep knowledge, they struggle with performance
+* Better hardware with more cache, NUMA architecture, faster drive SSD, cloud container and kbernetes. 
 * RedPanda scales more easily and delivers consistently low latencies with a much lower hardware footprint, and with data safety.
 * To get strong guarantee in Kafka you need to flush message to disk, and it is too slow.
 * JVM app tends to have some latency issue while GC (2 to 6s), but with Kafka messaging that will impact throughput too. An asynch write on a file, will put some performance barrier on the OS Kernel, code has to wait the flush to disk to complete. RedPanda uses batch and debouncing the write operations. No page cached is used, so no lock is used on the kernel (file handlers) to save to dick. File space and metadata are preallocated: No synchronization of the file metadata at the linux kernel.
 * Result 4x throughput and 100x latency improvements
 * The autotuner feature is a tool to assess what the best settings and configurations for running the system: the linux kernel is optimized: network interface, Non-volatile Memory express device (NVMe)
+* Single binary includes broker, HTTP proxy, schema registry
+* Native Prometheus and Grafan integration. Support consumer lag metrics.
+* Terraform and ansible templates available
+* Automatic leader and partition rebalancing, see below
 
-It uses the [Raft consensus algorithm](https://raft.github.io/): recall that **consensus** involves multiple servers agreeing on values. The algorithm is well [explained here](http://thesecretlivesofdata.com/raft/) and can be summarized as:
+It uses the [Raft consensus algorithm](https://raft.github.io/) with is a proven distributed consensus protocol: recall that **consensus** involves multiple servers agreeing on values. The algorithm is well [explained here](http://thesecretlivesofdata.com/raft/) and can be summarized as:
 
   * a node has 3 states: Follower, Candidate or Leader
   * all nodes starts as a follower. But if they do not get info from a Leader they can become a candidate
@@ -22,15 +27,19 @@ It uses the [Raft consensus algorithm](https://raft.github.io/): recall that **c
      
      * election timeout (150ms to 300ms) is the amount of time a follower waits until becoming a candidate. Once it votes for itself, it sends Request Vote messages to other nodes.
      * Heartbeat timeout, controls how often Append Entry messages are sent to followers. Data received from external clients are carried in the Append Entry messages.
+
   * Raft can stay consistent in the face of network partitions
 
-Is is C++ based.
 
-It supports WASM ([WebAssembly](https://webassembly.org/)) engine to do inline message transformation between topics via uploading WASM script. The Kafka Stream pattern of *consume - process - produce* is using network communication that is not efficient.
-
-Shadow indexing feature helps to upload the append log to long persistence storage like s3, COS with indexing. No need for mirror maker. Ask s3 to do replication between DCs, but index is also copied, so historical access is kept. RedPanda guarantee the access and encapsulate that, still using Kafka API. Super cheap using s3 replication. 
+* It is C++ implemented.
+* It supports WASM ([WebAssembly](https://webassembly.org/)) engine to do inline message transformation between topics via uploading WASM script. The Kafka Stream pattern of *consume - process - produce* is using network communication that is not efficient.
+* For fraud tolerance, Red Panda is easier to manage as it support a single fault domain, with just one distributed system protocol, while Kafka with Zookeeper and the in-synch protocol has two fault domains, two consensus protocols, which complexifies the problem investigation and the recovery. 
+* Shadow indexing feature helps to upload the append log to long persistence storage like s3, COS with indexing. No need for mirror maker. Ask s3 to do replication between DCs, but index is also copied, so historical access is kept. RedPanda guarantees the access and encapsulates that, still using Kafka API. Super cheap using s3 replication.
+* Use the Seastar framework: supports async programming model via futures and promises. Thread-per-core architecture elinates global locks and minimizes I/O blocking, reducing context switching costs.
+* Direct I/O management done by red panda, uses in memory object cache, save to disk after each batch of records. A portion of the memory can be allocated to historical records and portion for fresh written records.  
 
 Focus is the company who are doing large scale data streaming without data loss.
+
 
 ## The Kafka API
 
@@ -42,12 +51,21 @@ REST request / response is supported with Kafka REST proxy, and RedPanda offers 
 
 Kafka API had knowledge of the cluster, bootstrap servers, broker lists, partition leader...
 
-But per say Kafka Stream is not that efficient as consume - processing - produce is using network communication, so this transformation can be done with WASM
+But per say Kafka Stream is not that efficient as the `consume - processing - produce` is using network communication, so this transformation can be better be done with WASM.
 
+## Schema registry
+
+Support Confluent Schema registry.
 
 ## Run it
 
 [Installation instruction for rpk](https://vectorized.io/): `brew install vectorizedio/tap/redpanda`
+
+```sh
+docker run -d --pull=always --name=redpanda-1 --rm -p 9092:9092 -p 9644:9644 docker.vectorized.io/vectorized/redpanda:latest redpanda start \
+--overprovisioned --smp 1 --memory 1G --node-id 0 --check=false
+```
+
 
 ```shell
 rpk container start -n 3 
@@ -56,8 +74,9 @@ rpk container start -n 3
 Create topic: `rpk topic create test -p 1 -r 1`
 Consume from topic: `rpk topic consume test`
 
+Another way to start is to use: `docker run -ti -p 9092:9092 vectorized/redpanda`.
 
-Another way to start is to use: `docker run -ti -p 9092:9092 vectorized/redpanda`
+Quarkus dev with any kafka extension will use RedPanda.
 
 ### OpenShift Deploy:
 
@@ -138,3 +157,5 @@ The pods will rollout in a few seconds. To check the status:
 * [Podcast - simplify your streaming data workloads with Red Panda.](https://www.dataengineeringpodcast.com/vectorized-red-panda-streaming-data-episode-152/)
 * [Performance summit 2020](https://www.youtube.com/watch?v=wwU58YMgPtE&t=1944s)
 * [Helm chart]()
+* [Alpaca Launches Next-Gen Order Management System That Makes Order Processing 100x Faster](https://alpaca.markets/blog/alpaca-launches-next-gen-order-management-system/)
+* [Code generation in Redpanda](https://redpanda.com/blog/codegen/)
