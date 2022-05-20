@@ -19,7 +19,7 @@ Red Panda is a good fit for companies doing large scale data streaming without d
 * Zero data loss by default, highly available and predictable performance at scale
 * Limitless processing of both real-time and historical data through a single API.
 * Redpanda Keeper (RPK) automatically tunes your kernel to yield the optimal settings for your hardware
-* Transform data with our WebAssembly-based engine.
+* Transform data with our WebAssembly-based engine: 60% of streaming programming is for doing data manipulation, so to avoid data ping-pong that exists with existing streaming platform, move logic like filtering, data normalization, scrubbing, cleaning in the broker or in sidecar close to it. A wasm engine executes the code. Any wasm modules is supported.
 
 With [cloud offering](https://redpanda.com/cloud/)
 
@@ -72,6 +72,21 @@ Kafka API had knowledge of the cluster, bootstrap servers, broker lists, partiti
 
 But per say Kafka Stream is not that efficient as the `consume - processing - produce` is using network communication, so this transformation can be better be done with WASM.
 
+### Wasm engine
+
+JavaScript allowed developers to turn static content into the immersive web experiences of today, fundamentally changing the web by shipping code to the user’s computer. Wasm empowers the engineer to transform Redpanda, by shipping computational guarantees (code) to the storage engine. It simply inverts the relation of shipping data to compute by shipping code to data.
+
+[Redpanda Transforms](https://redpanda.com/blog/wasm-architecture/) is based on [Google V8 engine](https://v8.dev/) and runs in sidecar or within broker.
+
+There are 2 types of engines inside Redpanda. The first is for synchronous functions that are in the hot request-response path: transformation function is called before writing the data to the disk. The other is for stateful transformations that are always asynchronous.
+
+Current GA feature is the async processing, which is using a child topic-partition created with parent topic creation.
+
+Record written to the parent topic, but the transformation will work on each replicas and write to the child. Consumers poll from child topic. Transformation function needs to be idempotent.
+
+
+See [data transformation with web assembly section](/#data-transformation-with-webassembly) and [Red Panda article](https://redpanda.com/blog/wasm-architecture/)
+
 ## Getting started
 
 See [Platform to install the product](https://redpanda.com/platform/), or docker
@@ -110,7 +125,27 @@ rpk topic consume twitch_chat --brokers=localhost:9092
 rpk cluster config edit
 ```
 
-## Data transformation with WebAssembly 
+## [Data transformation](https://docs.redpanda.com/docs/data-management/data-transform/) with WebAssembly 
+
+Code is created in javascript or any language supporting wasm generation.
+
+```sh
+rpk wasm generate program-name
+```
+
+Then code is pushed to RedPanda and persisted in a compacted topic so only the last version of code is available:
+
+```sh
+rpk wasm deploy --name="encrypt-name" main.js
+```
+
+![](./images/async-wasm-processing.png)
+
+`Pacemaker` actively listens for the registration of new scripts (.wasm + .js) via `rpk wasm deploy` and starts a watch on all new incoming data for the registered topics. The pacemaker is critical for crash recovery. In essence the pacemaker keeps a map of Wasm scripts to offset state. 
+
+Stateful transforms execute at the lowest level of the storage engine - the partition - and inherit the same partition scalability of the parent stream.
+
+At any point in time we can say exactly what scripts are running in the system, on what computers, for what input topics, and we can revoke them and inspect them at runtime.
 
 
 ???- "Compendium"
