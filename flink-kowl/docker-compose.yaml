@@ -1,0 +1,84 @@
+version: '3.7'
+services:
+  redpanda:
+    image: docker.redpanda.com/vectorized/redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+    ports:
+      - 8081:8081
+      - 8082:8082
+      - 9092:9092
+      - 29092:29092
+
+  kowl:
+    image: quay.io/cloudhut/kowl
+    restart: on-failure
+    entrypoint: /bin/sh
+    command: -c "echo \"$$KOWL_CONFIG_FILE\" > /tmp/config.yml; /app/kowl"
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      KOWL_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:29092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda:8081"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda
+
+  jobmanager:
+    image: flink:scala_2.12-java11 
+    ports:
+      - "8083:8081"
+    command: jobmanager
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+    depends_on:
+      - redpanda
+  taskmanager:
+    image: flink:scala_2.12-java11 
+    depends_on:
+      - jobmanager
+      - redpanda
+    command: taskmanager
+    scale: 1
+    environment:
+      - |
+        FLINK_PROPERTIES=
+        jobmanager.rpc.address: jobmanager
+        taskmanager.numberOfTaskSlots: 10
+  sql-client:
+    image: quay.io/ibmcase/flink-sql-client
+    depends_on:
+      - jobmanager
+    environment:
+      FLINK_JOBMANAGER_HOST: jobmanager
+    volumes:
+      - ./settings/:/settings
+  simulator:
+    image: quay.io/ibmcase/eda-store-simulator
+    container_name: simulator
+    depends_on:
+      - redpanda
+    hostname: storeapp
+    ports:
+      - "8084:8080"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: redpanda:29092
+      APP_TARGET_MESSAGING: Kafka
+      KAFKA_SECURITY_PROTOCOL: PLAINTEXT
+      KAFKA_SASL_MECHANISM: PLAIN
+      KAFKA_CERT_PWD: ""
+      USER_CERT_PWD: ""
+      MQ_HOST: ibmmq

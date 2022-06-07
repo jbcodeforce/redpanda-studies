@@ -5,16 +5,16 @@ Redpanda is a new storage engine, optimized for streaming data, using a thread-p
 ## Context
 
 * Companies are not happy to run Kafka, and when they have deep knowledge, they struggle with performance
-* Better hardware with more cache, NUMA architecture, faster drive SSD, cloud container and kbernetes. 
+* Better hardware with more cache, NUMA architecture, faster drive SSD, cloud container and kubernetes. 
 * RedPanda scales more easily and delivers consistently low latencies with a much lower hardware footprint, and with data safety.
-* To get strong guarantee in Kafka you need to flush message to disk, and it is too slow.
+* To get strong guarantee in Kafka you need to flush message to disk, and it is too slow. It is possible to loose messages in Kafka as acknowlege is sent before the fsynch to disk is complete. 
 
-Red Panda is a good fit for companies doing large scale data streaming without data loss and also in the use case of resource consumption reduction
+Red Panda is a good fit for companies doing large scale data streaming without data loss and also in the use case of resource consumption reduction: RedPanda helps reducing power consumption so better for the environment.
 
 ## Value Propositions
 
 * Kafka compatible cluster. C++ engine.
-* Single binary to deploy. No more zookeeper. It uses the Raft consensus algorithm internally.
+* Single binary to deploy. No more zookeeper. It uses the Raft consensus algorithm internally to manage broker cluster.
 * Up to 10x lower tail latencies and 6x faster Kafka transactions on fewer resources.
 * Zero data loss by default, highly available and predictable performance at scale
 * Limitless processing of both real-time and historical data through a single API.
@@ -150,9 +150,17 @@ At any point in time we can say exactly what scripts are running in the system, 
 
 ???- "Compendium"
     * [Podcast - simplify your streaming data workloads with Red Panda.](https://www.dataengineeringpodcast.com/vectorized-red-panda-streaming-data-episode-152/)
+    * [Alex Gallego present this pitch to the IBM Consulting](https://www.youtube.com/watch?v=JPTt1ny67x4)
     * [Performance summit 2020](https://www.youtube.com/watch?v=wwU58YMgPtE&t=1944s)
     * [Helm chart]()
     * [Alpaca Launches Next-Gen Order Management System That Makes Order Processing 100x Faster](https://alpaca.markets/blog/alpaca-launches-next-gen-order-management-system/)
     * [Code generation in Redpanda](https://redpanda.com/blog/codegen/)
+    * [Infoworld Review: Redpanda gives Kafka a run for its money](https://www.infoworld.com/article/3660628/review-redpanda-gives-kafka-a-run-for-its-money.html)
+    * The Jepsen [Redpanda report](https://redpanda.com/blog/redpanda-official-jepsen-report-and-analysis/)
+    * [Terraform deployment done by IBM](https://github.com/redpanda-data/deployment-automation/tree/main/ibm)
+    * [Data transformation with web assembly section](/#data-transformation-with-webassembly)
+    * [Red Panda article on WASM architecture](https://redpanda.com/blog/wasm-architecture/)]
+
+ 
 
 

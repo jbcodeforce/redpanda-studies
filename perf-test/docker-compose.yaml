@@ -1,0 +1,72 @@
+version: '3.7'
+services:
+  redpanda:
+    image: docker.redpanda.com/vectorized/redpanda
+    command:
+      - redpanda start
+      - --smp 1
+      - --overprovisioned
+      - --node-id 0
+      - --kafka-addr PLAINTEXT://0.0.0.0:29092,OUTSIDE://0.0.0.0:9092
+      - --advertise-kafka-addr PLAINTEXT://redpanda:29092,OUTSIDE://localhost:9092
+      - --pandaproxy-addr 0.0.0.0:8082
+      - --advertise-pandaproxy-addr localhost:8082
+    container_name: redpanda
+    ports:
+      - 8081:8081
+      - 8082:8082
+      - 9092:9092
+      - 29092:29092
+  addTopics:
+    image:  cp.icr.io/cp/ibm-eventstreams-kafka:11.0.1
+    depends_on:
+      - redpanda
+    entrypoint: [ "bash",  "-c", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server redpanda:29092 --create  --replication-factor 1 --partitions 1 --topic jmeter-test" ] 
+  
+  kowl:
+    image: quay.io/cloudhut/kowl
+    container_name: kowl
+    restart: on-failure
+    entrypoint: /bin/sh
+    command: -c "echo \"$$KOWL_CONFIG_FILE\" > /tmp/config.yml; /app/kowl"
+    environment:
+      CONFIG_FILEPATH: /tmp/config.yml
+      KOWL_CONFIG_FILE: |
+        kafka:
+          brokers: ["redpanda:29092"]
+          schemaRegistry:
+            enabled: true
+            urls: ["http://redpanda:8081"]
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda
+
+  jmeter:
+    image: quay.io/ibmcase/jmeter-kafka
+    container_name: jmeter
+    ports:
+      - "9270:9270"
+    depends_on:
+      - addTopics
+    environment:
+      BOOTSTRAP_SERVERS: "redpanda:29092"
+      JMETER_THREADS: "2"
+      RAMPUP_PERIOD: "2"
+      LOOP_COUNT: "-1"
+      KAFKA_TOPIC: "jmeter-test"
+      SAMPLER_LABEL: "test"
+      KAFKA_MESSAGE: "this is a test message 1000 bytes: 234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234"
+  prometheus:
+    image: prom/prometheus
+    container_name:  prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/:/etc/prometheus/
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+volumes:
+  prometheus_data: {}
